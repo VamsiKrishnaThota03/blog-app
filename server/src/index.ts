@@ -30,13 +30,18 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Initialize database and start server
-initializeDatabase()
-  .then(() => {
+async function startServer() {
+  try {
+    await initializeDatabase();
+    console.log('Database initialized successfully');
+    
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
-  })
-  .catch((error) => {
-    console.error('Failed to initialize database:', error);
+  } catch (error) {
+    console.error('Failed to start server:', error);
     process.exit(1);
-  }); 
+  }
+}
+
+startServer(); 

@@ -10,97 +10,95 @@ dotenv.config();
 // Promisify DNS lookup
 const lookup = promisify(dns.lookup);
 
-// Function to resolve hostname to IPv4 address
-async function resolveHostnameToIPv4(hostname: string): Promise<string> {
-  try {
-    const result = await lookup(hostname, { family: 4 });
-    console.log(`Resolved ${hostname} to IPv4: ${result.address}`);
-    return result.address;
-  } catch (error) {
-    console.error(`Error resolving ${hostname} to IPv4:`, error);
-    return hostname; // Fall back to hostname if resolution fails
-  }
-}
+// Create a singleton pool instance
+let pool: Pool | null = null;
 
-// Initialize the database with retry logic
-async function initializeDatabase(retries = 3, delay = 5000): Promise<Pool> {
-  let pool: Pool | null = null;
-  
+// Function to initialize the database connection
+export async function initializeDatabase(): Promise<Pool> {
+  if (pool) {
+    return pool;
+  }
+
+  const retries = 5;
+  const delay = 5000; // 5 seconds
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`Database initialization attempt ${attempt}/${retries}`);
+      console.log(`Attempting to initialize database (attempt ${attempt}/${retries})...`);
       
-      // Create a new pool for each attempt
+      // Get database configuration from environment variables
+      const dbConfig = {
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        host: process.env.DB_HOST,
+        port: parseInt(process.env.DB_PORT || '5432'),
+        database: process.env.DB_NAME,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        query_timeout: 30000, // 30 seconds
+      };
+
+      // If using a connection string, resolve the hostname to IPv4
       if (process.env.DATABASE_URL) {
-        // Extract hostname from connection string
         const url = new URL(process.env.DATABASE_URL);
         const hostname = url.hostname;
         
-        // Resolve hostname to IPv4
-        const ipv4Address = await resolveHostnameToIPv4(hostname);
-        
-        // Create a new connection string with IPv4 address
-        const ipv4ConnectionString = process.env.DATABASE_URL.replace(
-          hostname, 
-          ipv4Address
-        );
-        
-        console.log(`Using IPv4 connection string: ${ipv4ConnectionString.replace(/:[^:@]*@/, ':****@')}`);
-        
-        pool = new Pool({
-          connectionString: ipv4ConnectionString,
-          ssl: {
-            rejectUnauthorized: false
-          },
-          connectionTimeoutMillis: 30000,
-          query_timeout: 30000
-        });
-      } else {
-        // Use individual parameters
-        const hostname = process.env.DB_HOST || 'localhost';
-        const ipv4Address = await resolveHostnameToIPv4(hostname);
-        
-        pool = new Pool({
-          user: process.env.DB_USER,
-          password: process.env.DB_PASSWORD,
-          host: ipv4Address,
-          port: parseInt(process.env.DB_PORT || '5432'),
-          database: process.env.DB_NAME,
-          ssl: {
-            rejectUnauthorized: false
-          },
-          connectionTimeoutMillis: 30000,
-          query_timeout: 30000
-        });
+        try {
+          const { address } = await lookup(hostname, { family: 4 });
+          url.hostname = address;
+          process.env.DATABASE_URL = url.toString();
+        } catch (error) {
+          console.error(`Failed to resolve hostname ${hostname}:`, error);
+          throw error;
+        }
       }
-      
+
+      // Create a new pool
+      pool = new Pool(process.env.DATABASE_URL ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        query_timeout: 30000, // 30 seconds
+      } : dbConfig);
+
       // Test the connection
       await pool.query('SELECT NOW()');
-      console.log('Database connection successful');
-      
+      console.log('Database connection test successful');
+
       // Check if tables exist
-      const tablesResult = await pool.query(`
+      const tableCheck = await pool.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name = 'users'
         );
       `);
-      
-      if (!tablesResult.rows[0].exists) {
-        // Tables don't exist, create them
-        const schemaPath = path.join(__dirname, '../../schema.sql');
-        const schema = fs.readFileSync(schemaPath, 'utf8');
-        await pool.query(schema);
-        console.log('Tables created successfully');
-      } else {
-        console.log('Tables already exist');
+
+      if (!tableCheck.rows[0].exists) {
+        console.log('Tables do not exist, initializing database schema...');
+        // Initialize your database schema here
+        // This should match your schema.sql file
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS posts (
+            id SERIAL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        console.log('Database schema initialized successfully');
       }
-      
-      // If we get here, initialization was successful
+
       console.log('Database initialized successfully');
-      
-      // Export the pool for use in the application
       return pool;
     } catch (error) {
       console.error(`Error initializing database (attempt ${attempt}/${retries}):`, error);
@@ -118,20 +116,10 @@ async function initializeDatabase(retries = 3, delay = 5000): Promise<Pool> {
   throw new Error('Failed to initialize database after all retry attempts');
 }
 
-// Create a global pool variable
-let appPool: Pool | null = null;
-
-// Initialize the database and set the global pool
-initializeDatabase()
-  .then(pool => {
-    appPool = pool;
-    console.log('Database pool initialized and set globally');
-  })
-  .catch(error => {
-    console.error('Failed to initialize database pool:', error);
-    process.exit(1);
-  });
-
-// Export the initialization function and the app pool
-export { initializeDatabase };
-export default appPool; 
+// Export a function to get the pool
+export function getPool(): Pool {
+  if (!pool) {
+    throw new Error('Database pool not initialized. Call initializeDatabase() first.');
+  }
+  return pool;
+} 

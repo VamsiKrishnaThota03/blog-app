@@ -1,9 +1,9 @@
-import { Pool } from 'pg';
-import { initializeDatabase } from '../config/database';
+import { Pool, QueryConfig, QueryResult } from 'pg';
+import { getPool } from '../config/database';
 
 // Function to get a database pool that is guaranteed to be initialized
 export async function getDbPool(): Promise<Pool> {
-  const pool = await initializeDatabase();
+  const pool = await getPool();
   if (!pool) {
     throw new Error('Failed to initialize database pool');
   }
@@ -20,6 +20,31 @@ export async function executeQuery<T = any>(
     return result.rows;
   } catch (error) {
     console.error('Database query error:', error);
+    throw error;
+  }
+}
+
+export async function query<T = any>(
+  text: string,
+  params?: any[],
+  config?: QueryConfig
+): Promise<QueryResult<T>> {
+  const pool = getPool();
+  
+  try {
+    const start = Date.now();
+    const result = await pool.query(text, params, config);
+    const duration = Date.now() - start;
+    
+    console.log('Executed query', {
+      text,
+      duration,
+      rows: result.rowCount,
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('Error executing query:', error);
     throw error;
   }
 } 
