@@ -62,4 +62,37 @@ export async function createIPv4ConnectionString(connectionString: string): Prom
     console.warn('DNS: Failed to create IPv4 connection string, using original:', error);
     return connectionString;
   }
+}
+
+/**
+ * Creates a direct connection string that bypasses DNS resolution issues
+ * @param connectionString The original connection string
+ * @returns A connection string with direct connection parameters
+ */
+export function createDirectConnectionString(connectionString: string): string {
+  console.log('DNS: Creating direct connection string');
+  
+  try {
+    // Parse the connection string
+    const url = new URL(connectionString);
+    
+    // Extract connection parameters
+    const username = url.username;
+    const password = url.password;
+    const hostname = url.hostname;
+    const port = url.port || '5432';
+    const database = url.pathname.substring(1); // Remove leading slash
+    
+    // Create a direct connection string using individual parameters
+    const directConnectionString = `postgres://${username}:${password}@${hostname}:${port}/${database}`;
+    
+    // Log the new connection string with the password masked
+    const maskedConnectionString = directConnectionString.replace(/:[^:@]*@/, ':****@');
+    console.log(`DNS: Created direct connection string: ${maskedConnectionString}`);
+    
+    return directConnectionString;
+  } catch (error) {
+    console.warn('DNS: Failed to create direct connection string, using original:', error);
+    return connectionString;
+  }
 } 

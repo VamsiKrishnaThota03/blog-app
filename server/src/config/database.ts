@@ -2,7 +2,7 @@ import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { createIPv4ConnectionString } from '../utils/dnsResolver';
+import { createIPv4ConnectionString, createDirectConnectionString } from '../utils/dnsResolver';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -54,25 +54,49 @@ export async function initializeDatabase(maxRetries = 5, initialDelay = 1000): P
         throw new Error('DATABASE_URL environment variable is not set');
       }
       
-      // Try to create an IPv4 connection string, but fall back to the original if it fails
+      // Try different connection strategies
       console.log('Database: Creating connection string');
       let connectionString = databaseUrl;
+      let connectionStrategy = 'original';
       
       try {
+        // First try: Use IPv4 connection string
         connectionString = await createIPv4ConnectionString(databaseUrl);
+        connectionStrategy = 'ipv4';
       } catch (error) {
-        console.warn('Database: Failed to create IPv4 connection string, using original:', error);
+        console.warn('Database: Failed to create IPv4 connection string, trying direct connection:', error);
+        
+        try {
+          // Second try: Use direct connection string
+          connectionString = createDirectConnectionString(databaseUrl);
+          connectionStrategy = 'direct';
+        } catch (error) {
+          console.warn('Database: Failed to create direct connection string, using original:', error);
+          // Fall back to original connection string
+          connectionString = databaseUrl;
+          connectionStrategy = 'original';
+        }
       }
       
       // Create a new pool with the connection string
-      console.log('Database: Creating new pool');
-      pool = new Pool({
+      console.log(`Database: Creating new pool with ${connectionStrategy} connection strategy`);
+      
+      // Configure the pool based on the connection strategy
+      const poolConfig: PoolConfig = {
         connectionString,
         ssl: {
           rejectUnauthorized: false
         },
         query_timeout: 30000
-      });
+      };
+      
+      // Add additional configuration for direct connection
+      if (connectionStrategy === 'direct') {
+        // Force IPv4 for direct connections
+        poolConfig.connectionTimeoutMillis = 10000;
+      }
+      
+      pool = new Pool(poolConfig);
       
       // Test the connection
       console.log('Database: Testing connection');
