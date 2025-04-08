@@ -2,7 +2,7 @@ import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { createIPv4ConnectionString, createDirectConnectionString } from '../utils/dnsResolver';
+import { createIPv4ConnectionString, createDirectConnectionString, createIPv4FamilyConnectionString } from '../utils/dnsResolver';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -54,48 +54,52 @@ export async function initializeDatabase(maxRetries = 5, initialDelay = 1000): P
         throw new Error('DATABASE_URL environment variable is not set');
       }
       
-      // Try different connection strategies
-      console.log('Database: Creating connection string');
-      let connectionString = databaseUrl;
-      let connectionStrategy = 'original';
+      // Parse the connection string to extract individual parameters
+      console.log('Database: Parsing connection string');
+      let poolConfig: PoolConfig;
       
       try {
-        // First try: Use IPv4 connection string
-        connectionString = await createIPv4ConnectionString(databaseUrl);
-        connectionStrategy = 'ipv4';
-      } catch (error) {
-        console.warn('Database: Failed to create IPv4 connection string, trying direct connection:', error);
+        const url = new URL(databaseUrl);
+        const username = url.username;
+        const password = url.password;
+        const hostname = url.hostname;
+        const port = parseInt(url.port || '5432', 10);
+        const database = url.pathname.substring(1); // Remove leading slash
         
-        try {
-          // Second try: Use direct connection string
-          connectionString = createDirectConnectionString(databaseUrl);
-          connectionStrategy = 'direct';
-        } catch (error) {
-          console.warn('Database: Failed to create direct connection string, using original:', error);
-          // Fall back to original connection string
-          connectionString = databaseUrl;
-          connectionStrategy = 'original';
-        }
+        console.log(`Database: Using direct connection parameters for ${hostname}`);
+        
+        // Create a pool config with individual parameters
+        poolConfig = {
+          user: username,
+          password: password,
+          host: hostname,
+          port: port,
+          database: database,
+          ssl: {
+            rejectUnauthorized: false
+          },
+          query_timeout: 30000,
+          // Force IPv4
+          connectionTimeoutMillis: 10000
+        };
+      } catch (error) {
+        console.warn('Database: Failed to parse connection string, using direct connection string:', error);
+        
+        // Fall back to direct connection string
+        const directConnectionString = createDirectConnectionString(databaseUrl);
+        
+        poolConfig = {
+          connectionString: directConnectionString,
+          ssl: {
+            rejectUnauthorized: false
+          },
+          query_timeout: 30000,
+          connectionTimeoutMillis: 10000
+        };
       }
       
-      // Create a new pool with the connection string
-      console.log(`Database: Creating new pool with ${connectionStrategy} connection strategy`);
-      
-      // Configure the pool based on the connection strategy
-      const poolConfig: PoolConfig = {
-        connectionString,
-        ssl: {
-          rejectUnauthorized: false
-        },
-        query_timeout: 30000
-      };
-      
-      // Add additional configuration for direct connection
-      if (connectionStrategy === 'direct') {
-        // Force IPv4 for direct connections
-        poolConfig.connectionTimeoutMillis = 10000;
-      }
-      
+      // Create a new pool with the connection config
+      console.log('Database: Creating new pool with direct connection parameters');
       pool = new Pool(poolConfig);
       
       // Test the connection

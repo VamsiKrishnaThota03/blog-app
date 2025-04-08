@@ -95,4 +95,32 @@ export function createDirectConnectionString(connectionString: string): string {
     console.warn('DNS: Failed to create direct connection string, using original:', error);
     return connectionString;
   }
+}
+
+/**
+ * Creates a connection string with explicit IPv4 family setting
+ * @param connectionString The original connection string
+ * @returns A connection string with explicit IPv4 family setting
+ */
+export function createIPv4FamilyConnectionString(connectionString: string): string {
+  console.log('DNS: Creating IPv4 family connection string');
+  
+  try {
+    // Parse the connection string
+    const url = new URL(connectionString);
+    
+    // Add IPv4 family parameter
+    url.searchParams.set('family', '4');
+    
+    const ipv4FamilyConnectionString = url.toString();
+    
+    // Log the new connection string with the password masked
+    const maskedConnectionString = ipv4FamilyConnectionString.replace(/:[^:@]*@/, ':****@');
+    console.log(`DNS: Created IPv4 family connection string: ${maskedConnectionString}`);
+    
+    return ipv4FamilyConnectionString;
+  } catch (error) {
+    console.warn('DNS: Failed to create IPv4 family connection string, using original:', error);
+    return connectionString;
+  }
 } 
