@@ -1,27 +1,24 @@
+import { Request, Response } from 'express';
+import pool from '../config/database';
+
 export const getMyPosts = async (req: Request, res: Response) => {
   try {
-    const posts = await prisma.post.findMany({
-      where: {
-        user_id: req.user.id
-      },
-      orderBy: {
-        created_at: 'desc'
-      },
-      include: {
-        user: {
-          select: {
-            name: true
-          }
-        }
-      }
-    });
-
-    const formattedPosts = posts.map(post => ({
-      ...post,
-      author_name: post.user.name
-    }));
-
-    res.json(formattedPosts);
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
+    const result = await pool.query(
+      `SELECT p.*, u.name as author_name 
+       FROM posts p 
+       JOIN users u ON p.author_id = u.id 
+       WHERE p.author_id = $1 
+       ORDER BY p.created_at DESC`,
+      [userId]
+    );
+    
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching user posts:', error);
     res.status(500).json({ message: 'Error fetching user posts' });

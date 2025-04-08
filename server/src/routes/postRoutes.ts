@@ -6,14 +6,14 @@ import {
   updatePost,
   deletePost,
 } from "../controllers/postController";
-import { auth } from "../middleware/auth";
+import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
 
-router.post("/", auth, createPost);
+router.post("/", authenticateToken, createPost);
 router.get("/", getPosts);
 router.get("/:id", getPost);
-router.put("/:id", auth, updatePost);
-router.delete("/:id", auth, deletePost);
+router.put("/:id", authenticateToken, updatePost);
+router.delete("/:id", authenticateToken, deletePost);
 
 export default router; 

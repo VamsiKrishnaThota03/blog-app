@@ -1,5 +1,5 @@
 import pool from '../config/database';
-import bcrypt from 'bcrypt';
+import bcryptjs from 'bcryptjs';
 
 const dummyPosts = [
   {
@@ -108,7 +108,7 @@ Protect your applications by understanding and implementing these security measu
 async function seed() {
   try {
     // Create a default user for the dummy posts
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcryptjs.hash('admin123', 10);
     const userResult = await pool.query(
       'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id',
       ['Admin User', 'admin@example.com', hashedPassword]
