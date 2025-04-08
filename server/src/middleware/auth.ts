@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import pool from "../config/database";
 
@@ -12,11 +13,7 @@ declare global {
   }
 }
 
-export const authenticateToken = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const authenticateToken: RequestHandler = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -37,6 +34,6 @@ export const authenticateToken = async (
     req.user = { id: decoded.id };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Invalid token.' });
+    return res.status(401).json({ message: 'Invalid token.' });
   }
 }; 

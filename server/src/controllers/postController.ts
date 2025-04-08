@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import { RequestHandler } from 'express';
 import pool from '../config/database';
 
-export const createPost = async (req: Request, res: Response) => {
+export const createPost: RequestHandler = async (req, res) => {
   try {
     const { title, content } = req.body;
     const userId = req.user!.id;
@@ -18,7 +19,7 @@ export const createPost = async (req: Request, res: Response) => {
   }
 };
 
-export const getPosts = async (req: Request, res: Response) => {
+export const getPosts: RequestHandler = async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -49,7 +50,7 @@ export const getPosts = async (req: Request, res: Response) => {
   }
 };
 
-export const getPost = async (req: Request, res: Response) => {
+export const getPost: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -73,7 +74,7 @@ export const getPost = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePost = async (req: Request, res: Response) => {
+export const updatePost: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content } = req.body;
@@ -102,7 +103,7 @@ export const updatePost = async (req: Request, res: Response) => {
   }
 };
 
-export const deletePost = async (req: Request, res: Response) => {
+export const deletePost: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
@@ -127,7 +128,7 @@ export const deletePost = async (req: Request, res: Response) => {
   }
 };
 
-export const getMyPosts = async (req: Request, res: Response) => {
+export const getMyPosts: RequestHandler = async (req, res) => {
   try {
     const userId = req.user!.id;
 
