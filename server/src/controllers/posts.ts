@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import pool from '../config/database';
+import { getPool } from '../config/database';
 
 export const getMyPosts = async (req: Request, res: Response) => {
   try {
@@ -9,7 +9,7 @@ export const getMyPosts = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
     
-    const result = await pool.query(
+    const result = await getPool().query(
       `SELECT p.*, u.name as author_name 
        FROM posts p 
        JOIN users u ON p.author_id = u.id 
