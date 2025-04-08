@@ -14,7 +14,8 @@ export const register = async (req: Request, res: Response) => {
     );
 
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ message: 'User already exists' });
+      res.status(400).json({ message: 'User already exists' });
+      return;
     }
 
     // Hash password
@@ -59,7 +60,8 @@ export const login = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      res.status(400).json({ message: 'Invalid credentials' });
+      return;
     }
 
     const user = result.rows[0];
@@ -67,7 +69,8 @@ export const login = async (req: Request, res: Response) => {
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      res.status(400).json({ message: 'Invalid credentials' });
+      return;
     }
 
     // Create token
@@ -97,7 +100,8 @@ export const getMe = async (req: Request, res: Response) => {
     );
 
     if (user.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      res.status(404).json({ error: "User not found" });
+      return;
     }
 
     const userData = user.rows[0];

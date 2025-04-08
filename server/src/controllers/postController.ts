@@ -62,7 +62,8 @@ export const getPost = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Post not found' });
+      res.status(404).json({ message: 'Post not found' });
+      return;
     }
 
     res.json(result.rows[0]);
@@ -85,7 +86,8 @@ export const updatePost = async (req: Request, res: Response) => {
     );
 
     if (postResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Post not found or unauthorized' });
+      res.status(404).json({ message: 'Post not found or unauthorized' });
+      return;
     }
 
     const result = await pool.query(
@@ -112,7 +114,8 @@ export const deletePost = async (req: Request, res: Response) => {
     );
 
     if (postResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Post not found or unauthorized' });
+      res.status(404).json({ message: 'Post not found or unauthorized' });
+      return;
     }
 
     await pool.query('DELETE FROM posts WHERE id = $1', [id]);

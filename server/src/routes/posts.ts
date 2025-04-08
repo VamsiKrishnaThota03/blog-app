@@ -8,8 +8,6 @@ import {
   getMyPosts,
 } from '../controllers/postController';
 import { authenticateToken } from '../middleware/auth';
-import { Request, Response } from 'express';
-import pool from '../config/database';
 
 const router = express.Router();
 
