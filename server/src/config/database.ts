@@ -22,16 +22,18 @@ async function resolveHostnameToIPv4(hostname: string): Promise<string> {
     console.log(`Successfully resolved ${hostname} to IPv4: ${address}`);
     return address;
   } catch (error) {
-    console.error(`Failed to resolve ${hostname} to IPv4:`, error);
-    throw error;
+    console.warn(`Failed to resolve ${hostname} to IPv4, using original hostname:`, error);
+    return hostname;
   }
 }
 
 /**
- * Initialize the database connection
+ * Initialize the database connection with retry logic
+ * @param maxRetries Maximum number of retry attempts
+ * @param initialDelay Initial delay in milliseconds
  * @returns A promise that resolves to the database pool
  */
-export async function initializeDatabase(): Promise<Pool> {
+export async function initializeDatabase(maxRetries = 5, initialDelay = 1000): Promise<Pool> {
   console.log('Database: Initializing database connection');
   
   // If we already have a pool, return it
@@ -40,41 +42,68 @@ export async function initializeDatabase(): Promise<Pool> {
     return pool;
   }
   
-  try {
-    // Get the database URL from environment variables
-    const databaseUrl = process.env.DATABASE_URL;
-    
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL environment variable is not set');
+  let retries = 0;
+  let delay = initialDelay;
+  
+  while (retries < maxRetries) {
+    try {
+      // Get the database URL from environment variables
+      const databaseUrl = process.env.DATABASE_URL;
+      
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
+      
+      // Try to create an IPv4 connection string, but fall back to the original if it fails
+      console.log('Database: Creating connection string');
+      let connectionString = databaseUrl;
+      
+      try {
+        connectionString = await createIPv4ConnectionString(databaseUrl);
+      } catch (error) {
+        console.warn('Database: Failed to create IPv4 connection string, using original:', error);
+      }
+      
+      // Create a new pool with the connection string
+      console.log('Database: Creating new pool');
+      pool = new Pool({
+        connectionString,
+        ssl: {
+          rejectUnauthorized: false
+        },
+        query_timeout: 30000
+      });
+      
+      // Test the connection
+      console.log('Database: Testing connection');
+      await pool.query('SELECT NOW()');
+      console.log('Database: Connection successful');
+      
+      // Initialize tables if they don't exist
+      await initializeTables();
+      
+      return pool;
+    } catch (error) {
+      console.error(`Database: Connection attempt ${retries + 1} failed:`, error);
+      
+      // If we've reached the maximum number of retries, throw the error
+      if (retries >= maxRetries - 1) {
+        console.error('Database: Maximum retry attempts reached, giving up');
+        throw error;
+      }
+      
+      // Otherwise, wait and retry
+      retries++;
+      console.log(`Database: Retrying in ${delay}ms (attempt ${retries + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Exponential backoff with a maximum delay of 30 seconds
+      delay = Math.min(delay * 2, 30000);
     }
-    
-    // Create an IPv4 connection string
-    console.log('Database: Creating IPv4 connection string');
-    const ipv4ConnectionString = await createIPv4ConnectionString(databaseUrl);
-    
-    // Create a new pool with the IPv4 connection string
-    console.log('Database: Creating new pool with IPv4 connection string');
-    pool = new Pool({
-      connectionString: ipv4ConnectionString,
-      ssl: {
-        rejectUnauthorized: false
-      },
-      query_timeout: 30000
-    });
-    
-    // Test the connection
-    console.log('Database: Testing connection');
-    await pool.query('SELECT NOW()');
-    console.log('Database: Connection successful');
-    
-    // Initialize tables if they don't exist
-    await initializeTables();
-    
-    return pool;
-  } catch (error) {
-    console.error('Database: Failed to initialize database:', error);
-    throw error;
   }
+  
+  // This should never be reached due to the throw in the catch block
+  throw new Error('Failed to initialize database after multiple attempts');
 }
 
 /**
