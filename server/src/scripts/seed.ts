@@ -1,4 +1,4 @@
-import pool from '../config/database';
+import { Pool } from 'pg';
 import bcryptjs from 'bcryptjs';
 import { initializeDatabase } from '../config/database';
 
