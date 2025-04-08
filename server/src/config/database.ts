@@ -2,14 +2,9 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import dns from 'dns';
-import { promisify } from 'util';
-import { createConnection } from 'net';
+import { createIPv4ConnectionString } from '../utils/dnsResolver';
 
 dotenv.config();
-
-// Promisify DNS lookup
-const lookup = promisify(dns.lookup);
 
 // Create a singleton pool instance
 let pool: Pool | null = null;
@@ -42,21 +37,28 @@ export async function initializeDatabase(): Promise<Pool> {
       if (process.env.DATABASE_URL) {
         console.log('Using DATABASE_URL for connection');
         
-        // Try to parse the connection string
         try {
-          const url = new URL(process.env.DATABASE_URL);
-          console.log(`Connecting to database at ${url.hostname}:${url.port}`);
+          // Try to create an IPv4 connection string
+          const ipv4ConnectionString = await createIPv4ConnectionString(process.env.DATABASE_URL);
+          console.log(`Using IPv4 connection string: ${ipv4ConnectionString.replace(/:[^:@]*@/, ':****@')}`);
           
-          // Create pool with direct connection string
+          pool = new Pool({
+            connectionString: ipv4ConnectionString,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            query_timeout: 30000, // 30 seconds
+            connectionTimeoutMillis: 10000,
+          });
+        } catch (error) {
+          console.error('Failed to create IPv4 connection string:', error);
+          console.log('Falling back to direct connection string');
+          
+          // Use the original connection string
           pool = new Pool({
             connectionString: process.env.DATABASE_URL,
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
             query_timeout: 30000, // 30 seconds
             connectionTimeoutMillis: 10000,
           });
-        } catch (error) {
-          console.error('Error parsing DATABASE_URL:', error);
-          throw new Error('Invalid DATABASE_URL format');
         }
       } else {
         console.log('Using individual connection parameters');
