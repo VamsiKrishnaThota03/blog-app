@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
-import pool from "../config/database";
+import { getDbPool } from "../utils/db";
 
 declare global {
   namespace Express {
@@ -28,6 +28,7 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key') as { id: number };
 
     // Verify user exists in database
+    const pool = await getDbPool();
     const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
     
     if (result.rows.length === 0) {

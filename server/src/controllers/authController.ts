@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import pool from "../config/database";
+import { getDbPool } from "../utils/db";
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body;
+    const pool = await getDbPool();
 
     // Check if user already exists
     const userExists = await pool.query(
@@ -52,6 +53,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    const pool = await getDbPool();
 
     // Check if user exists
     const result = await pool.query(
@@ -94,24 +96,22 @@ export const login = async (req: Request, res: Response) => {
 
 export const getMe = async (req: Request, res: Response) => {
   try {
-    const user = await pool.query(
-      'SELECT id, email, name FROM users WHERE id = $1',
-      [req.user!.id]
+    const userId = req.user!.id;
+    const pool = await getDbPool();
+
+    const result = await pool.query(
+      'SELECT id, name, email FROM users WHERE id = $1',
+      [userId]
     );
 
-    if (user.rows.length === 0) {
-      res.status(404).json({ error: "User not found" });
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: 'User not found' });
       return;
     }
 
-    const userData = user.rows[0];
-
-    res.json({
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-    });
+    res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching user" });
+    console.error('Get me error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 }; 

@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { RequestHandler } from 'express';
-import pool from '../config/database';
+import { getDbPool } from '../utils/db';
 
 export const createPost: RequestHandler = async (req, res) => {
   try {
     const { title, content } = req.body;
     const userId = req.user!.id;
+    const pool = await getDbPool();
 
     const result = await pool.query(
       'INSERT INTO posts (title, content, user_id) VALUES ($1, $2, $3) RETURNING *',
@@ -24,6 +25,7 @@ export const getPosts: RequestHandler = async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
+    const pool = await getDbPool();
 
     const postsResult = await pool.query(
       `SELECT p.*, u.name as author_name 
@@ -53,6 +55,7 @@ export const getPosts: RequestHandler = async (req, res) => {
 export const getPost: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
+    const pool = await getDbPool();
 
     const result = await pool.query(
       `SELECT p.*, u.name as author_name 
@@ -79,20 +82,22 @@ export const updatePost: RequestHandler = async (req, res) => {
     const { id } = req.params;
     const { title, content } = req.body;
     const userId = req.user!.id;
+    const pool = await getDbPool();
 
     // Check if post exists and belongs to user
-    const postResult = await pool.query(
+    const checkResult = await pool.query(
       'SELECT * FROM posts WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (postResult.rows.length === 0) {
-      res.status(404).json({ message: 'Post not found or unauthorized' });
+    if (checkResult.rows.length === 0) {
+      res.status(404).json({ message: 'Post not found or not authorized' });
       return;
     }
 
+    // Update post
     const result = await pool.query(
-      'UPDATE posts SET title = $1, content = $2 WHERE id = $3 RETURNING *',
+      'UPDATE posts SET title = $1, content = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
       [title, content, id]
     );
 
@@ -107,18 +112,20 @@ export const deletePost: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
+    const pool = await getDbPool();
 
     // Check if post exists and belongs to user
-    const postResult = await pool.query(
+    const checkResult = await pool.query(
       'SELECT * FROM posts WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (postResult.rows.length === 0) {
-      res.status(404).json({ message: 'Post not found or unauthorized' });
+    if (checkResult.rows.length === 0) {
+      res.status(404).json({ message: 'Post not found or not authorized' });
       return;
     }
 
+    // Delete post
     await pool.query('DELETE FROM posts WHERE id = $1', [id]);
 
     res.json({ message: 'Post deleted successfully' });
@@ -131,13 +138,10 @@ export const deletePost: RequestHandler = async (req, res) => {
 export const getMyPosts: RequestHandler = async (req, res) => {
   try {
     const userId = req.user!.id;
+    const pool = await getDbPool();
 
     const result = await pool.query(
-      `SELECT p.*, u.name as author_name 
-       FROM posts p 
-       JOIN users u ON p.user_id = u.id 
-       WHERE p.user_id = $1 
-       ORDER BY p.created_at DESC`,
+      'SELECT * FROM posts WHERE user_id = $1 ORDER BY created_at DESC',
       [userId]
     );
 
