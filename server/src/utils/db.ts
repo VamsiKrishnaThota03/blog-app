@@ -3,11 +3,7 @@ import { getPool } from '../config/database';
 
 // Function to get a database pool that is guaranteed to be initialized
 export async function getDbPool(): Promise<Pool> {
-  const pool = await getPool();
-  if (!pool) {
-    throw new Error('Failed to initialize database pool');
-  }
-  return pool;
+  return getPool();
 }
 
 // Function to execute a query with proper error handling
