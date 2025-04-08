@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
 import { promisify } from 'util';
+import { createConnection } from 'net';
 
 dotenv.config();
 
@@ -12,6 +13,17 @@ const lookup = promisify(dns.lookup);
 
 // Create a singleton pool instance
 let pool: Pool | null = null;
+
+// Custom DNS resolver to force IPv4
+const customResolver = (hostname: string, callback: (err: Error | null, address: string) => void) => {
+  dns.lookup(hostname, { family: 4 }, (err, address) => {
+    if (err) {
+      callback(err, '');
+    } else {
+      callback(null, address);
+    }
+  });
+};
 
 // Function to initialize the database connection
 export async function initializeDatabase(): Promise<Pool> {
@@ -40,11 +52,37 @@ export async function initializeDatabase(): Promise<Pool> {
       // If using a connection string, try to use it directly without DNS resolution
       if (process.env.DATABASE_URL) {
         console.log('Using DATABASE_URL for connection');
-        pool = new Pool({
-          connectionString: process.env.DATABASE_URL,
-          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-          query_timeout: 30000, // 30 seconds
-        });
+        
+        // Extract hostname from connection string
+        const url = new URL(process.env.DATABASE_URL);
+        const hostname = url.hostname;
+        
+        // Try to resolve the hostname to IPv4
+        try {
+          const { address } = await lookup(hostname, { family: 4 });
+          console.log(`Resolved ${hostname} to IPv4: ${address}`);
+          
+          // Replace hostname with IP in connection string
+          url.hostname = address;
+          const ipv4ConnectionString = url.toString();
+          
+          pool = new Pool({
+            connectionString: ipv4ConnectionString,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            query_timeout: 30000, // 30 seconds
+            connectionTimeoutMillis: 10000,
+          });
+        } catch (error) {
+          console.error(`Failed to resolve hostname ${hostname}:`, error);
+          console.log('Falling back to direct connection string');
+          
+          pool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            query_timeout: 30000, // 30 seconds
+            connectionTimeoutMillis: 10000,
+          });
+        }
       } else {
         console.log('Using individual connection parameters');
         pool = new Pool(dbConfig);
