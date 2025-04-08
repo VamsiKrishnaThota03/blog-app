@@ -23,24 +23,6 @@ router.put('/:id', authenticateToken, updatePost);
 router.delete('/:id', authenticateToken, deletePost);
 
 // User posts route
-router.get('/user/me', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).user.id;
-    
-    const result = await pool.query(
-      `SELECT p.*, u.name as author_name 
-       FROM posts p 
-       JOIN users u ON p.user_id = u.id 
-       WHERE p.user_id = $1 
-       ORDER BY p.created_at DESC`,
-      [userId]
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching user posts:', error);
-    res.status(500).json({ error: 'Failed to fetch user posts' });
-  }
-});
+router.get('/user/me', authenticateToken, getMyPosts);
 
 export default router; 
