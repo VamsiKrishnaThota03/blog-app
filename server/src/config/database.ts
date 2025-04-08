@@ -37,27 +37,18 @@ export async function initializeDatabase(): Promise<Pool> {
         query_timeout: 30000, // 30 seconds
       };
 
-      // If using a connection string, resolve the hostname to IPv4
+      // If using a connection string, try to use it directly without DNS resolution
       if (process.env.DATABASE_URL) {
-        const url = new URL(process.env.DATABASE_URL);
-        const hostname = url.hostname;
-        
-        try {
-          const { address } = await lookup(hostname, { family: 4 });
-          url.hostname = address;
-          process.env.DATABASE_URL = url.toString();
-        } catch (error) {
-          console.error(`Failed to resolve hostname ${hostname}:`, error);
-          throw error;
-        }
+        console.log('Using DATABASE_URL for connection');
+        pool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+          query_timeout: 30000, // 30 seconds
+        });
+      } else {
+        console.log('Using individual connection parameters');
+        pool = new Pool(dbConfig);
       }
-
-      // Create a new pool
-      pool = new Pool(process.env.DATABASE_URL ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-        query_timeout: 30000, // 30 seconds
-      } : dbConfig);
 
       // Test the connection
       await pool.query('SELECT NOW()');
