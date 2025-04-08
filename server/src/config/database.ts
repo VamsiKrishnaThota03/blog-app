@@ -1,131 +1,170 @@
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { createIPv4ConnectionString } from '../utils/dnsResolver';
+import dns from 'dns';
+import { promisify } from 'util';
 
 dotenv.config();
 
-// Create a singleton pool instance
+// Global pool instance
 let pool: Pool | null = null;
 
-// Function to initialize the database connection
-export async function initializeDatabase(): Promise<Pool> {
-  if (pool) {
-    return pool;
+// Promisify DNS lookup
+const lookup = promisify(dns.lookup);
+
+// Function to resolve hostname to IPv4
+async function resolveHostnameToIPv4(hostname: string): Promise<string> {
+  try {
+    console.log(`Attempting to resolve hostname: ${hostname}`);
+    const { address } = await lookup(hostname, { family: 4 });
+    console.log(`Successfully resolved ${hostname} to IPv4: ${address}`);
+    return address;
+  } catch (error) {
+    console.error(`Failed to resolve ${hostname} to IPv4:`, error);
+    throw error;
   }
-
-  const retries = 5;
-  const delay = 5000; // 5 seconds
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`Attempting to initialize database (attempt ${attempt}/${retries})...`);
-      
-      // Get database configuration from environment variables
-      const dbConfig = {
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT || '5432'),
-        database: process.env.DB_NAME,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-        query_timeout: 30000, // 30 seconds
-      };
-
-      // If using a connection string, try to use it directly
-      if (process.env.DATABASE_URL) {
-        console.log('Using DATABASE_URL for connection');
-        
-        try {
-          // Try to create an IPv4 connection string
-          const ipv4ConnectionString = await createIPv4ConnectionString(process.env.DATABASE_URL);
-          console.log(`Using IPv4 connection string: ${ipv4ConnectionString.replace(/:[^:@]*@/, ':****@')}`);
-          
-          pool = new Pool({
-            connectionString: ipv4ConnectionString,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-            query_timeout: 30000, // 30 seconds
-            connectionTimeoutMillis: 10000,
-          });
-        } catch (error) {
-          console.error('Failed to create IPv4 connection string:', error);
-          console.log('Falling back to direct connection string');
-          
-          // Use the original connection string
-          pool = new Pool({
-            connectionString: process.env.DATABASE_URL,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-            query_timeout: 30000, // 30 seconds
-            connectionTimeoutMillis: 10000,
-          });
-        }
-      } else {
-        console.log('Using individual connection parameters');
-        pool = new Pool(dbConfig);
-      }
-
-      // Test the connection
-      await pool.query('SELECT NOW()');
-      console.log('Database connection test successful');
-
-      // Check if tables exist
-      const tableCheck = await pool.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'users'
-        );
-      `);
-
-      if (!tableCheck.rows[0].exists) {
-        console.log('Tables do not exist, initializing database schema...');
-        // Initialize your database schema here
-        // This should match your schema.sql file
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE TABLE IF NOT EXISTS posts (
-            id SERIAL PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
-            content TEXT NOT NULL,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-          );
-        `);
-        console.log('Database schema initialized successfully');
-      }
-
-      console.log('Database initialized successfully');
-      return pool;
-    } catch (error) {
-      console.error(`Error initializing database (attempt ${attempt}/${retries}):`, error);
-      
-      if (attempt < retries) {
-        console.log(`Retrying in ${delay/1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        console.error('Failed to initialize database after all retry attempts');
-        throw error;
-      }
-    }
-  }
-  
-  throw new Error('Failed to initialize database after all retry attempts');
 }
 
-// Export a function to get the pool
-export function getPool(): Pool {
+/**
+ * Initialize the database connection
+ * @returns A promise that resolves to the database pool
+ */
+export async function initializeDatabase(): Promise<Pool> {
+  console.log('Database: Initializing database connection');
+  
+  // If we already have a pool, return it
+  if (pool) {
+    console.log('Database: Using existing pool');
+    return pool;
+  }
+  
+  try {
+    // Get the database URL from environment variables
+    const databaseUrl = process.env.DATABASE_URL;
+    
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+    
+    // Create an IPv4 connection string
+    console.log('Database: Creating IPv4 connection string');
+    const ipv4ConnectionString = await createIPv4ConnectionString(databaseUrl);
+    
+    // Create a new pool with the IPv4 connection string
+    console.log('Database: Creating new pool with IPv4 connection string');
+    pool = new Pool({
+      connectionString: ipv4ConnectionString,
+      ssl: {
+        rejectUnauthorized: false
+      },
+      query_timeout: 30000
+    });
+    
+    // Test the connection
+    console.log('Database: Testing connection');
+    await pool.query('SELECT NOW()');
+    console.log('Database: Connection successful');
+    
+    // Initialize tables if they don't exist
+    await initializeTables();
+    
+    return pool;
+  } catch (error) {
+    console.error('Database: Failed to initialize database:', error);
+    throw error;
+  }
+}
+
+/**
+ * Initialize the database tables
+ */
+async function initializeTables(): Promise<void> {
+  console.log('Database: Initializing tables');
+  
   if (!pool) {
-    throw new Error('Database pool not initialized. Call initializeDatabase() first.');
+    throw new Error('Database pool is not initialized');
+  }
+  
+  try {
+    // Check if the users table exists
+    const result = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'users'
+      );
+    `);
+    
+    const usersTableExists = result.rows[0].exists;
+    
+    if (!usersTableExists) {
+      console.log('Database: Creating users table');
+      await pool.query(`
+        CREATE TABLE users (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(255) UNIQUE NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('Database: Users table created');
+    } else {
+      console.log('Database: Users table already exists');
+    }
+    
+    // Check if the posts table exists
+    const postsResult = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'posts'
+      );
+    `);
+    
+    const postsTableExists = postsResult.rows[0].exists;
+    
+    if (!postsTableExists) {
+      console.log('Database: Creating posts table');
+      await pool.query(`
+        CREATE TABLE posts (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('Database: Posts table created');
+    } else {
+      console.log('Database: Posts table already exists');
+    }
+  } catch (error) {
+    console.error('Database: Failed to initialize tables:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the database pool
+ * @returns A promise that resolves to the database pool
+ */
+export async function getPool(): Promise<Pool> {
+  if (!pool) {
+    return initializeDatabase();
   }
   return pool;
+}
+
+// Export the pool for direct access
+export { pool };
+
+// Function to close the pool
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = null;
+    console.log('Database pool closed');
+  }
 } 
