@@ -1,5 +1,6 @@
 import pool from '../config/database';
 import bcryptjs from 'bcryptjs';
+import { initializeDatabase } from '../config/database';
 
 const dummyPosts = [
   {
@@ -107,9 +108,16 @@ Protect your applications by understanding and implementing these security measu
 
 async function seed() {
   try {
+    // Initialize the database and get a pool
+    const dbPool = await initializeDatabase();
+    
+    if (!dbPool) {
+      throw new Error('Failed to initialize database pool');
+    }
+    
     // Create a default user for the dummy posts
     const hashedPassword = await bcryptjs.hash('admin123', 10);
-    const userResult = await pool.query(
+    const userResult = await dbPool.query(
       'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id',
       ['Admin User', 'admin@example.com', hashedPassword]
     );
@@ -117,7 +125,7 @@ async function seed() {
 
     // Insert dummy posts
     for (const post of dummyPosts) {
-      await pool.query(
+      await dbPool.query(
         'INSERT INTO posts (title, content, user_id) VALUES ($1, $2, $3)',
         [post.title, post.content, userId]
       );
