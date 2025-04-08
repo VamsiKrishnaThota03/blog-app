@@ -22,7 +22,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   config?: Omit<QueryConfig, 'text' | 'values'>
 ): Promise<QueryResult<T>> {
   const start = Date.now();
-  const pool = await getDbPool();
+  const pool = await getPool();
   
   try {
     const queryConfig: QueryConfig = {
@@ -33,19 +33,10 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
     
     const result = await pool.query<T>(queryConfig);
     const duration = Date.now() - start;
-    
-    console.log('Executed query', {
-      text,
-      duration,
-      rows: result.rowCount,
-    });
-    
+    console.log('Executed query', { text, duration, rows: result.rowCount });
     return result;
   } catch (error) {
-    console.error('Query error', {
-      text,
-      error,
-    });
+    console.error('Error executing query', { text, error });
     throw error;
   }
 }
@@ -54,7 +45,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 export async function executeQuery<T extends QueryResultRow>(
   queryFn: (pool: Pool) => Promise<{ rows: T[] }>
 ): Promise<T[]> {
-  const pool = await getDbPool();
+  const pool = await getPool();
   try {
     const result = await queryFn(pool);
     return result.rows;

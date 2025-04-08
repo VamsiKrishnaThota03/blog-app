@@ -1,126 +1,75 @@
 import dns from 'dns';
 import { promisify } from 'util';
 
+// Promisify DNS lookup
+const lookup = promisify(dns.lookup);
+
 /**
- * Resolves a hostname to an IPv4 address with fallback options
+ * Resolves a hostname to an IPv4 address
  * @param hostname The hostname to resolve
- * @returns A promise that resolves to the IPv4 address or the original hostname if resolution fails
+ * @returns A promise that resolves to the IPv4 address
  */
-export async function resolveToIPv4(hostname: string): Promise<string> {
-  console.log(`DNS: Resolving hostname ${hostname} to IPv4 address`);
-  
+export async function resolveHostnameToIPv4(hostname: string): Promise<string> {
   try {
-    // Use the dns.lookup function to resolve the hostname
-    const lookup = promisify(dns.lookup);
-    const result = await lookup(hostname, { family: 4 });
-    
-    if (!result || !result.address) {
-      console.warn(`DNS: Could not resolve hostname ${hostname} to IPv4 address, using original hostname`);
-      return hostname;
-    }
-    
-    console.log(`DNS: Successfully resolved ${hostname} to ${result.address}`);
-    return result.address;
+    console.log(`Attempting to resolve hostname: ${hostname}`);
+    const { address } = await lookup(hostname, { family: 4 });
+    console.log(`Successfully resolved ${hostname} to IPv4: ${address}`);
+    return address;
   } catch (error) {
-    console.warn(`DNS: Failed to resolve hostname ${hostname}, using original hostname:`, error);
+    console.warn(`Failed to resolve ${hostname} to IPv4, using original hostname:`, error);
     return hostname;
   }
 }
 
 /**
- * Creates a new connection string with the hostname replaced by its resolved IPv4 address
+ * Creates a connection string with the hostname replaced by its IPv4 address
  * @param connectionString The original connection string
- * @returns A promise that resolves to the new connection string with IPv4 address or the original if resolution fails
+ * @returns A promise that resolves to the modified connection string
  */
 export async function createIPv4ConnectionString(connectionString: string): Promise<string> {
-  console.log('DNS: Creating IPv4 connection string');
-  
   try {
-    // Parse the connection string
     const url = new URL(connectionString);
     const hostname = url.hostname;
+    const ipv4Address = await resolveHostnameToIPv4(hostname);
     
-    // Resolve the hostname to IPv4
-    const ipv4Address = await resolveToIPv4(hostname);
-    
-    // If resolution failed, return the original connection string
-    if (ipv4Address === hostname) {
-      console.warn('DNS: Using original connection string due to resolution failure');
-      return connectionString;
-    }
-    
-    // Create a new connection string with the IPv4 address
+    // Replace the hostname with the IPv4 address
     url.hostname = ipv4Address;
-    const ipv4ConnectionString = url.toString();
-    
-    // Log the new connection string with the password masked
-    const maskedConnectionString = ipv4ConnectionString.replace(/:[^:@]*@/, ':****@');
-    console.log(`DNS: Created IPv4 connection string: ${maskedConnectionString}`);
-    
-    return ipv4ConnectionString;
+    return url.toString();
   } catch (error) {
-    console.warn('DNS: Failed to create IPv4 connection string, using original:', error);
+    console.warn('Failed to create IPv4 connection string, using original:', error);
     return connectionString;
   }
 }
 
 /**
- * Creates a direct connection string that bypasses DNS resolution issues
+ * Creates a connection string with direct hostname (no DNS resolution)
  * @param connectionString The original connection string
- * @returns A connection string with direct connection parameters
+ * @returns The modified connection string
  */
 export function createDirectConnectionString(connectionString: string): string {
-  console.log('DNS: Creating direct connection string');
-  
   try {
-    // Parse the connection string
     const url = new URL(connectionString);
-    
-    // Extract connection parameters
-    const username = url.username;
-    const password = url.password;
-    const hostname = url.hostname;
-    const port = url.port || '5432';
-    const database = url.pathname.substring(1); // Remove leading slash
-    
-    // Create a direct connection string using individual parameters
-    const directConnectionString = `postgres://${username}:${password}@${hostname}:${port}/${database}`;
-    
-    // Log the new connection string with the password masked
-    const maskedConnectionString = directConnectionString.replace(/:[^:@]*@/, ':****@');
-    console.log(`DNS: Created direct connection string: ${maskedConnectionString}`);
-    
-    return directConnectionString;
+    // Keep the original hostname
+    return url.toString();
   } catch (error) {
-    console.warn('DNS: Failed to create direct connection string, using original:', error);
+    console.warn('Failed to create direct connection string, using original:', error);
     return connectionString;
   }
 }
 
 /**
- * Creates a connection string with explicit IPv4 family setting
+ * Creates a connection string with IPv4 family parameter
  * @param connectionString The original connection string
- * @returns A connection string with explicit IPv4 family setting
+ * @returns The modified connection string with IPv4 family parameter
  */
 export function createIPv4FamilyConnectionString(connectionString: string): string {
-  console.log('DNS: Creating IPv4 family connection string');
-  
   try {
-    // Parse the connection string
-    const url = new URL(connectionString);
-    
-    // Add IPv4 family parameter
-    url.searchParams.set('family', '4');
-    
-    const ipv4FamilyConnectionString = url.toString();
-    
-    // Log the new connection string with the password masked
-    const maskedConnectionString = ipv4FamilyConnectionString.replace(/:[^:@]*@/, ':****@');
-    console.log(`DNS: Created IPv4 family connection string: ${maskedConnectionString}`);
-    
-    return ipv4FamilyConnectionString;
+    // Add the IPv4 family parameter to the connection string
+    // This is a PostgreSQL-specific parameter that forces IPv4
+    const separator = connectionString.includes('?') ? '&' : '?';
+    return `${connectionString}${separator}family=4`;
   } catch (error) {
-    console.warn('DNS: Failed to create IPv4 family connection string, using original:', error);
+    console.warn('Failed to create IPv4 family connection string, using original:', error);
     return connectionString;
   }
 } 
