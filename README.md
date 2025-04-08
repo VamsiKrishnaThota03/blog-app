@@ -4,12 +4,41 @@ A full-stack blog application built with React, Node.js, Express, and PostgreSQL
 
 ## Features
 
-- User authentication (signup/login)
-- Create, read, update, and delete blog posts
-- Public blog listing with pagination
-- Responsive design for desktop and mobile
-- Secure API endpoints
-- JWT-based authentication
+- **User Authentication**
+  - Secure registration and login with email and password
+  - JWT-based authentication for protected routes
+  - Persistent login state with token storage
+  - Protected routes for authenticated users only
+
+- **Blog Management**
+  - Create, read, update, and delete blog posts
+  - Rich text editing for post content
+  - Author attribution for each post
+  - Timestamp tracking for post creation and updates
+
+- **User Experience**
+  - Responsive design that works on desktop and mobile devices
+  - Dark mode support for better viewing in low-light conditions
+  - Loading indicators for asynchronous operations
+  - Error handling with user-friendly messages
+
+- **Content Display**
+  - Public blog listing with pagination
+  - Detailed post view with full content
+  - Author information display
+  - Formatted date display
+
+- **User Dashboard**
+  - Personal blog management interface
+  - View and manage your own posts
+  - Edit and delete your own content
+  - Create new posts from your dashboard
+
+- **Security**
+  - Secure API endpoints with authentication middleware
+  - Password hashing for user accounts
+  - Protected routes for sensitive operations
+  - Input validation and sanitization
 
 ## Tech Stack
 
@@ -51,9 +80,13 @@ blog/
 
 3. Create a `.env` file in the server directory with the following variables:
    ```
-   PORT=5000
-   DATABASE_URL=postgresql://username:password@localhost:5432/blog_db
+   PORT=4000
    JWT_SECRET=your_jwt_secret
+   DB_USER=postgres
+   DB_PASSWORD=your_password
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=blog_db
    ```
 
 4. Start the development server:
@@ -98,4 +131,4 @@ blog/
 2. Create your feature branch
 3. Commit your changes
 4. Push to the branch
-5. Create a new Pull Request 
+5. Create a new Pull Request
