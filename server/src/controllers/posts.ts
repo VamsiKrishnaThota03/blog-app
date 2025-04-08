@@ -9,7 +9,8 @@ export const getMyPosts = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
     
-    const result = await getPool().query(
+    const pool = await getPool();
+    const result = await pool.query(
       `SELECT p.*, u.name as author_name 
        FROM posts p 
        JOIN users u ON p.author_id = u.id 
