@@ -14,7 +14,7 @@ const port = process.env.PORT || 4000;
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.vercel.app', 'http://localhost:3000'] // Replace with your actual Vercel frontend URL
+    ? 'https://blog-app-seven-ruddy.vercel.app'
     : 'http://localhost:3000',
   credentials: true
 }));
