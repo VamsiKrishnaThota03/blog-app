@@ -108,7 +108,49 @@ blog/
 
 3. Start the development server:
    ```bash
-   npm start
+   npm run dev
+   ```
+
+## Deployment
+
+This application is deployed and accessible at: [https://blog-app-seven-ruddy.vercel.app/](https://blog-app-seven-ruddy.vercel.app/)
+
+### Frontend Deployment (Vercel)
+
+1. Create a Vercel account at [vercel.com](https://vercel.com)
+2. Connect your GitHub repository to Vercel
+3. Configure the build settings:
+   - Framework Preset: Vite
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. Add environment variables:
+   - `VITE_API_URL`: Your backend API URL (e.g., `https://blog-api-rer9.onrender.com/api`)
+5. Deploy the application
+
+### Backend Deployment (Render)
+
+1. Create a Render account at [render.com](https://render.com)
+2. Connect your GitHub repository to Render
+3. Create a new Web Service
+4. Configure the build settings:
+   - Build Command: `npm run build`
+   - Start Command: `npm start`
+5. Add environment variables:
+   - `PORT`: 4000
+   - `JWT_SECRET`: Your JWT secret
+   - `DATABASE_URL`: Your PostgreSQL connection string
+   - `NODE_ENV`: production
+6. Deploy the service
+
+### Database Deployment (Neon)
+
+1. Create a Neon account at [neon.tech](https://neon.tech)
+2. Create a new project
+3. Get your connection string from the dashboard
+4. Update your backend's `DATABASE_URL` environment variable with the Neon connection string
+5. Initialize the database schema using the provided script:
+   ```bash
+   npm run init-db
    ```
 
 ## API Endpoints
