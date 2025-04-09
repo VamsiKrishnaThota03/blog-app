@@ -1,6 +1,6 @@
 const config = {
   apiUrl: import.meta.env.PROD 
-    ? 'https://blog-api-xxxx.onrender.com/api' // Replace 'blog-api-xxxx' with your actual Render service name
+    ? 'https://blog-api-rer9.onrender.com/api' // Your Render service URL
     : 'http://localhost:4000/api',
 };
 
