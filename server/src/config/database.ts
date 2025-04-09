@@ -48,12 +48,9 @@ export async function initializeDatabase(): Promise<Pool> {
       throw new Error('DATABASE_URL environment variable is not set');
     }
     
-    // Create a connection string with IPv4 family parameter
-    const ipv4ConnectionString = createIPv4FamilyConnectionString(connectionString);
-    
     // Create the pool configuration
     const poolConfig: PoolConfig = {
-      connectionString: ipv4ConnectionString,
+      connectionString: connectionString,
       ssl: {
         rejectUnauthorized: false
       },
