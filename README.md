@@ -15,6 +15,10 @@ A full-stack blogging platform with JWT authentication, post CRUD, pagination an
 
 The frontend runs on Vercel, the API on Render (`https://blog-api-rer9.onrender.com/api`) and the database on Neon PostgreSQL.
 
+| Home feed | My Blogs (dark mode) | Mobile menu |
+| --- | --- | --- |
+| ![Home feed](docs/screenshots/home.png) | ![My Blogs in dark mode](docs/screenshots/my-blogs-dark.png) | ![Mobile navigation](docs/screenshots/mobile-menu.png) |
+
 ## Overview
 
 The repository is a two-package monorepo:
@@ -28,10 +32,11 @@ The repository is a two-package monorepo:
 - **Protected routes:** create, edit and "My Blogs" pages require login (`ProtectedRoute`)
 - **Posts CRUD:** create, read, update and delete posts. The server only lets the post's author update or delete it.
 - **Public feed with pagination:** `GET /api/posts?page=&limit=` returns posts with author name and the page count. The home page renders page buttons.
-- **Post detail page** with author and formatted dates
-- **My Blogs dashboard:** list, edit and delete your own posts
-- **Dark mode:** a toggle whose choice is saved to `localStorage`
-- **Responsive UI** built with Tailwind CSS and Headless UI / Heroicons
+- **Post detail page** with author, date and reading time; Edit/Delete only shown to the author
+- **My Blogs dashboard:** list and edit your own posts
+- **Dark mode:** follows the system preference until you toggle it; the choice is saved to `localStorage`
+- **Responsive UI** built with Tailwind CSS: collapsible mobile menu, loading, empty and error states, 404 page
+- **Server-side validation:** required fields, length limits, email format, numeric IDs and a capped page size
 - **Database scripts:** `init-db` applies `schema.sql`, and `seed` inserts sample posts
 - **Health check:** `GET /health`
 
@@ -39,7 +44,7 @@ The repository is a two-package monorepo:
 
 | Layer | Tools |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite 6, React Router 6, Tailwind CSS 3, Headless UI, Heroicons, axios |
+| Frontend | React 19, TypeScript, Vite 6, React Router 6, Tailwind CSS 3, axios |
 | Backend | Node.js, Express 4, TypeScript, `pg`, `jsonwebtoken`, `bcryptjs`, `cors`, `dotenv` |
 | Database | PostgreSQL (Neon in production) |
 | Hosting | Vercel (client), Render (server, `Procfile`) |
@@ -51,21 +56,26 @@ blog-app/
 ├── client/
 │   ├── src/
 │   │   ├── pages/          # Home, Login, Register, PostDetail, CreatePost, EditPost, MyBlogs
-│   │   ├── components/     # Navbar, ProtectedRoute
+│   │   ├── components/     # Navbar, PostCard, PostForm, AuthCard, Alert, Spinner, ProtectedRoute
 │   │   ├── context/        # AuthContext, ThemeContext (dark mode)
-│   │   ├── services/       # axios API client, posts service
-│   │   └── config.ts       # API base URL (localhost in dev, Render in prod)
-│   └── vite.config.ts
+│   │   ├── services/       # axios API client
+│   │   ├── utils/          # date formatting, API error messages
+│   │   └── config.ts       # API base URL (VITE_API_URL, /api proxy in dev, Render in prod)
+│   ├── vercel.json         # SPA rewrites so deep links work
+│   └── vite.config.ts      # dev server on :3000, proxies /api to :4000
 └── server/
     ├── schema.sql          # users + posts tables
     ├── Procfile
     └── src/
         ├── index.ts        # Express app, CORS, routes, /health
-        ├── config/database.ts  # pg Pool from DATABASE_URL
+        ├── config/env.ts       # required env vars (fails fast), CORS origins
+        ├── config/database.ts  # pg Pool from DATABASE_URL, TLS settings
         ├── controllers/    # authController, postController
         ├── middleware/auth.ts  # JWT verification
-        ├── routes/         # auth.ts, posts.ts (mounted)
+        ├── routes/         # auth.ts, posts.ts
+        ├── utils/          # db pool accessor, input validation
         └── scripts/        # initDb.ts, seed.ts
+    └── test/               # node:test unit tests (run against dist/)
 ```
 
 ## Getting started
@@ -82,28 +92,25 @@ cd server
 npm install
 ```
 
-Create `server/.env`:
+Copy `server/.env.example` to `server/.env` and fill it in. The server refuses to start if `DATABASE_URL` or `JWT_SECRET` is missing; there are no built-in fallback secrets.
 
-| Variable | Description |
-| --- | --- |
-| `PORT` | API port (default `4000`) |
-| `DATABASE_URL` | PostgreSQL connection string. SSL is enabled on the connection, so use a server that accepts SSL, such as Neon. |
-| `JWT_SECRET` | Secret used to sign and verify JWTs |
-| `NODE_ENV` | `development` or `production` |
-
-```env
-PORT=4000
-DATABASE_URL=postgresql://<user>:<password>@<host>/<database>?sslmode=require
-JWT_SECRET=<a-long-random-secret>
-NODE_ENV=development
-```
+| Variable | Required | Description |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Long random string used to sign JWTs (`openssl rand -hex 32`) |
+| `PORT` | No | API port (default `4000`) |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins (default: the Vercel domain, `http://localhost:3000`, `http://localhost:5173`) |
+| `DB_SSL` | No | Unset: TLS with certificate verification (no TLS for `localhost`). `no-verify`: TLS without verification. `disable`: no TLS. |
+| `SEED_USER_EMAIL` | No | Demo account email for `npm run seed` (default `demo@example.com`) |
+| `SEED_USER_PASSWORD` | For `seed` | Demo account password; the seed script will not run without it |
 
 Create the tables, optionally seed sample data, and start the API:
 
 ```bash
-npm run init-db     # runs schema.sql
-npm run seed        # optional: sample posts
+npm run init-db     # applies schema.sql (idempotent)
+SEED_USER_PASSWORD=<choose-one> npm run seed   # optional: demo user + sample posts
 npm run dev         # nodemon + ts-node on http://localhost:4000
+npm test            # compiles and runs the unit tests
 ```
 
 Production build:
@@ -121,7 +128,7 @@ npm install
 npm run dev         # Vite dev server
 ```
 
-The API base URL is set in `client/src/config.ts`: `http://localhost:4000/api` in development and the Render URL in production builds. The server's CORS allowlist (`server/src/index.ts`) covers `http://localhost:3000` and the Vercel domain. If Vite serves the client on a different port (the default is `5173`), add that origin or run `npm run dev -- --port 3000`.
+The dev server runs on `http://localhost:3000` and proxies `/api` to `http://localhost:4000` (override with `API_PROXY_TARGET`). Production builds call the Render URL unless `VITE_API_URL` is set at build time (see `client/.env.example`).
 
 | Command (client) | Description |
 | --- | --- |
@@ -149,6 +156,13 @@ Base path: `/api`. Protected routes need `Authorization: Bearer <token>`.
 
 ## Deployment notes
 
-- **Client (Vercel):** framework preset Vite, root `client`, build `npm run build`, output `dist`.
-- **Server (Render):** root `server`, build `npm run build`, start `npm start`. Set `DATABASE_URL`, `JWT_SECRET`, `PORT` and `NODE_ENV`.
+- **Client (Vercel):** framework preset Vite, root `client`, build `npm run build`, output `dist`. `client/vercel.json` rewrites all paths to `index.html` so refreshing `/post/:id` works. Optionally set `VITE_API_URL`.
+- **Server (Render):** root `server`, build `npm run build`, start `npm start`. Set `DATABASE_URL` and `JWT_SECRET` (and optionally `CORS_ORIGINS`, `DB_SSL`). The committed `server/.env.production` was removed from the repo, so these must be set in the Render dashboard.
 - **Database (Neon):** create a project, copy the connection string into `DATABASE_URL`, then run `npm run init-db`.
+
+## Known limitations
+
+- Post content is plain text (paragraphs split on new lines); there is no rich text or Markdown rendering.
+- The JWT is kept in `localStorage`, so an XSS bug would expose it. React escapes rendered content, which keeps the risk low.
+- There is no rate limiting on the login and register endpoints.
+- Server tests cover validation and configuration helpers only; the routes were smoke-tested against an in-memory Postgres, not a CI database.
