@@ -1,6 +1,5 @@
-import { Pool } from 'pg';
 import bcryptjs from 'bcryptjs';
-import { initializeDatabase } from '../config/database';
+import { closePool, initializeDatabase } from '../config/database';
 
 const dummyPosts = [
   {
@@ -107,31 +106,36 @@ Protect your applications by understanding and implementing these security measu
 ];
 
 async function seed() {
+  // The demo account password must come from the environment; nothing is hard-coded.
+  const email = process.env.SEED_USER_EMAIL || 'demo@example.com';
+  const password = process.env.SEED_USER_PASSWORD;
+  if (!password || password.length < 6) {
+    console.error('Set SEED_USER_PASSWORD (at least 6 characters) before running the seed script.');
+    process.exit(1);
+  }
+
   try {
-    // Initialize the database and get a pool
     const dbPool = await initializeDatabase();
-    
-    if (!dbPool) {
-      throw new Error('Failed to initialize database pool');
-    }
-    
-    // Create a default user for the dummy posts
-    const hashedPassword = await bcryptjs.hash('admin123', 10);
+
+    const hashedPassword = await bcryptjs.hash(password, 10);
     const userResult = await dbPool.query(
-      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id',
-      ['Admin User', 'admin@example.com', hashedPassword]
+      `INSERT INTO users (name, email, password) VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id`,
+      ['Demo User', email.toLowerCase(), hashedPassword]
     );
     const userId = userResult.rows[0].id;
 
-    // Insert dummy posts
     for (const post of dummyPosts) {
-      await dbPool.query(
-        'INSERT INTO posts (title, content, user_id) VALUES ($1, $2, $3)',
-        [post.title, post.content, userId]
-      );
+      await dbPool.query('INSERT INTO posts (title, content, user_id) VALUES ($1, $2, $3)', [
+        post.title,
+        post.content,
+        userId,
+      ]);
     }
 
-    console.log('Seed data inserted successfully!');
+    console.log(`Seeded ${dummyPosts.length} posts for ${email}.`);
+    await closePool();
     process.exit(0);
   } catch (error) {
     console.error('Error seeding data:', error);
@@ -139,4 +143,4 @@ async function seed() {
   }
 }
 
-seed(); 
+seed();

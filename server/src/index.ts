@@ -1,47 +1,57 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import { getCorsOrigins, getJwtSecret } from './config/env';
 import authRoutes from './routes/auth';
 import postRoutes from './routes/posts';
-import { authenticateToken } from './middleware/auth';
 import { initializeDatabase } from './config/database';
-
-dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-// Middleware
-app.use(cors({
-  origin: ['https://blog-app-seven-ruddy.vercel.app', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json());
+app.use(
+  cors({
+    origin: getCorsOrigins(),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+app.use(express.json({ limit: '1mb' }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 
-// Health check route
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
-// Initialize database and start server
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ message: 'Not found' });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
+  if (err.type === 'entity.parse.failed') {
+    res.status(400).json({ message: 'Invalid JSON body' });
+    return;
+  }
+  console.error('Unhandled error:', err);
+  res.status(500).json({ message: 'Server error' });
+});
+
 async function startServer() {
   try {
+    getJwtSecret(); // fail fast if the signing secret is missing
     await initializeDatabase();
-    console.log('Database initialized successfully');
-    
+    console.log('Database connection established');
+
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('Failed to start server:', error instanceof Error ? error.message : error);
     process.exit(1);
   }
 }
 
-startServer(); 
+startServer();

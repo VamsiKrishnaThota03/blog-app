@@ -8,7 +8,9 @@ node_modules/
 
 # Production
 /build
+build/
 /dist
+dist/
 
 # Environment variables
 .env
@@ -16,6 +18,8 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+!.env.example
 
 # Logs
 npm-debug.log*

@@ -1,48 +1,54 @@
-import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { getDbPool } from "../utils/db";
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { getDbPool } from '../utils/db';
+import { getJwtSecret } from '../config/env';
+import { isNonEmptyString, isValidEmail } from '../utils/validation';
+
+const MIN_PASSWORD_LENGTH = 6;
+
+function signToken(userId: number): string {
+  return jwt.sign({ id: userId }, getJwtSecret(), { expiresIn: '1d', algorithm: 'HS256' });
+}
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body ?? {};
+
+    if (!isNonEmptyString(name, 255)) {
+      res.status(400).json({ message: 'Name is required' });
+      return;
+    }
+    if (!isValidEmail(email)) {
+      res.status(400).json({ message: 'A valid email is required' });
+      return;
+    }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH || password.length > 72) {
+      res.status(400).json({ message: `Password must be ${MIN_PASSWORD_LENGTH}-72 characters` });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
     const pool = await getDbPool();
 
-    // Check if user already exists
-    const userExists = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
-
+    const userExists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
     if (userExists.rows.length > 0) {
       res.status(400).json({ message: 'User already exists' });
       return;
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create user
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
-      [name, email, hashedPassword]
+      [name.trim(), normalizedEmail, hashedPassword]
     );
-
     const user = result.rows[0];
-
-    // Create token
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || 'your_jwt_secret_key',
-      { expiresIn: '1d' }
-    );
 
     res.status(201).json({
       id: user.id,
       name: user.name,
       email: user.email,
-      token,
+      token: signToken(user.id),
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -52,41 +58,30 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-    const pool = await getDbPool();
-
-    // Check if user exists
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (result.rows.length === 0) {
+    const { email, password } = req.body ?? {};
+    if (!isValidEmail(email) || typeof password !== 'string' || password.length === 0) {
       res.status(400).json({ message: 'Invalid credentials' });
       return;
     }
+
+    const pool = await getDbPool();
+    const result = await pool.query(
+      'SELECT id, name, email, password FROM users WHERE LOWER(email) = $1',
+      [email.trim().toLowerCase()]
+    );
 
     const user = result.rows[0];
-
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+    const isMatch = user ? await bcrypt.compare(password, user.password) : false;
+    if (!user || !isMatch) {
       res.status(400).json({ message: 'Invalid credentials' });
       return;
     }
-
-    // Create token
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || 'your_jwt_secret_key',
-      { expiresIn: '1d' }
-    );
 
     res.json({
       id: user.id,
       name: user.name,
       email: user.email,
-      token,
+      token: signToken(user.id),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -95,23 +90,6 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const getMe = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const pool = await getDbPool();
-
-    const result = await pool.query(
-      'SELECT id, name, email FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      res.status(404).json({ message: 'User not found' });
-      return;
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Get me error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-}; 
+  // authenticateToken has already loaded the user from the database
+  res.json(req.user);
+};
