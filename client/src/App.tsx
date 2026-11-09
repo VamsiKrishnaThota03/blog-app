@@ -10,6 +10,7 @@ import CreatePost from './pages/CreatePost';
 import PostDetail from './pages/PostDetail';
 import EditPost from './pages/EditPost';
 import MyBlogs from './pages/MyBlogs';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -48,8 +49,12 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
+            <footer className="border-t border-gray-200 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              © {new Date().getFullYear()} Blog App
+            </footer>
           </div>
         </ThemeProvider>
       </AuthProvider>

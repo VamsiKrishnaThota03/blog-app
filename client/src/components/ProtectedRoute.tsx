@@ -1,5 +1,6 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PageLoader } from './Spinner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -7,17 +8,17 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { state } = useAuth();
-  const { isAuthenticated, loading } = state;
+  const location = useLocation();
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (state.loading && !state.isAuthenticated) {
+    return <PageLoader label="Checking your session" />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+  if (!state.isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   return <>{children}</>;
 };
 
-export default ProtectedRoute; 
+export default ProtectedRoute;

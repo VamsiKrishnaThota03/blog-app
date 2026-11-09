@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dispatch({ type: 'AUTH_LOADING' });
         const response = await auth.getMe();
         dispatch({ type: 'AUTH_SUCCESS', payload: response.data });
-      } catch (error) {
+      } catch {
         auth.removeToken();
         dispatch({ type: 'AUTH_ERROR', payload: 'Session expired. Please login again.' });
       }
