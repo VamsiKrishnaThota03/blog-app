@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build stage: compile TypeScript with dev dependencies available ----
-FROM node:20-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
 # Copy manifests first so `npm ci` is cached until dependencies actually change.
@@ -16,7 +16,7 @@ RUN npx tsc
 RUN npm prune --omit=dev
 
 # ---- runtime stage: no compiler, no dev dependencies, non-root ----
-FROM node:20-alpine AS runtime
+FROM node:26-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
