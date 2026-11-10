@@ -17,8 +17,8 @@
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.js\"",
-    "test": "tsc && node --test \"test/*.test.js\"",
-    "test:coverage": "tsc && node --test --experimental-test-coverage test/",
+    "test": "tsc && node --test",
+    "test:coverage": "tsc && node --test --experimental-test-coverage",
     "seed": "ts-node src/scripts/seed.ts",
     "init-db": "ts-node src/scripts/initDb.ts"
   },
