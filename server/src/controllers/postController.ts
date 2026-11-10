@@ -134,10 +134,10 @@ export const deletePost: RequestHandler = async (req, res) => {
       return;
     }
     const pool = await getDbPool();
-    const result = await pool.query('DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING id', [
-      id,
-      req.user!.id,
-    ]);
+    const result = await pool.query(
+      'DELETE FROM posts WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, req.user!.id]
+    );
 
     if (result.rows.length === 0) {
       res.status(404).json({ message: 'Post not found or not authorized' });

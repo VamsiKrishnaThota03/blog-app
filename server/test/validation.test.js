@@ -22,10 +22,14 @@ test('email and string validation', () => {
 
 test('sslConfig verifies certificates by default and skips TLS for localhost', () => {
   delete process.env.DB_SSL;
-  assert.deepStrictEqual(sslConfig('postgresql://u:p@db.example.com/x'), { rejectUnauthorized: true });
+  assert.deepStrictEqual(sslConfig('postgresql://u:p@db.example.com/x'), {
+    rejectUnauthorized: true,
+  });
   assert.strictEqual(sslConfig('postgresql://u:p@localhost/x'), false);
   process.env.DB_SSL = 'no-verify';
-  assert.deepStrictEqual(sslConfig('postgresql://u:p@db.example.com/x'), { rejectUnauthorized: false });
+  assert.deepStrictEqual(sslConfig('postgresql://u:p@db.example.com/x'), {
+    rejectUnauthorized: false,
+  });
   delete process.env.DB_SSL;
 });
 

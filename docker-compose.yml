@@ -1,0 +1,56 @@
+# Local development stack: Postgres + the API.
+#
+# Every published port is bound to 127.0.0.1 so nothing in this stack is
+# reachable from the local network. The database is only published at all as a
+# convenience for psql and GUI clients; the API talks to it over the compose
+# network on the `db` hostname and does not need the publish.
+#
+# Usage:
+#   cp server/.env.example server/.env   # then set JWT_SECRET
+#   docker compose up --build
+#   open http://localhost:4000/api-docs
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blog
+      POSTGRES_USER: blog
+      # No default: compose refuses to start until this is set in .env, so a
+      # throwaway password never becomes the one that ships.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog -d blog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      # Inside the container the listener must accept the compose network.
+      # The publish below is what keeps it off the local network.
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://blog:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/blog
+      DB_SSL: disable
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (openssl rand -hex 32)}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      LOG_LEVEL: debug
+    ports:
+      - "127.0.0.1:4000:4000"
+
+volumes:
+  pgdata:

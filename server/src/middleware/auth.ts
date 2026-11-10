@@ -35,7 +35,9 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
 
   try {
     const pool = await getDbPool();
-    const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
+    const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [
+      decoded.id,
+    ]);
 
     if (result.rows.length === 0) {
       res.status(401).json({ message: 'Invalid token.' });

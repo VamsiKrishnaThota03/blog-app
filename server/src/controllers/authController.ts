@@ -23,7 +23,11 @@ export const register = async (req: Request, res: Response) => {
       res.status(400).json({ message: 'A valid email is required' });
       return;
     }
-    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH || password.length > 72) {
+    if (
+      typeof password !== 'string' ||
+      password.length < MIN_PASSWORD_LENGTH ||
+      password.length > 72
+    ) {
       res.status(400).json({ message: `Password must be ${MIN_PASSWORD_LENGTH}-72 characters` });
       return;
     }
@@ -31,7 +35,9 @@ export const register = async (req: Request, res: Response) => {
     const normalizedEmail = email.trim().toLowerCase();
     const pool = await getDbPool();
 
-    const userExists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
+    const userExists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [
+      normalizedEmail,
+    ]);
     if (userExists.rows.length > 0) {
       res.status(400).json({ message: 'User already exists' });
       return;
